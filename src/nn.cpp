@@ -94,18 +94,11 @@ void backward(Layer &layer, f32 *next_layer_deltas, f32 learning_rate) {
 }
 
 void serialize(Layer &layer, char **buffer) {
-    memcpy(*buffer, &layer.input_size, sizeof(usize));
-    *buffer += sizeof(usize);
-
-    memcpy(*buffer, &layer.output_size, sizeof(usize));
-    *buffer += sizeof(usize);
-
     usize weight_size = sizeof(f32) * layer.input_size * layer.output_size;
     memcpy(*buffer, layer.weights, weight_size);
-
     *buffer += weight_size;
-    usize bias_size = sizeof(f32) * layer.output_size;
 
+    usize bias_size = sizeof(f32) * layer.output_size;
     memcpy(*buffer, layer.biases, bias_size);
     *buffer += bias_size;
 }
@@ -192,7 +185,7 @@ f32 calculate_loss(Network &network, f32 *target) {
 }
 
 usize calculate_total_serialization_size(Network &network) {
-    usize total_size = sizeof(usize); // For the number of layers
+    usize total_size = sizeof(usize) + sizeof(f32); // For the layer_count and learning_rate
     for (usize i = 0; i < network.layer_count; ++i) {
         total_size += 2 * sizeof(usize); // For input and output sizes
         total_size += network.layers[i].input_size * network.layers[i].output_size * sizeof(f32); // For weights
@@ -221,7 +214,6 @@ char *serialize(Network &network) {
     }
 
     for (usize i = 0; i < network.layer_count; i++) {
-        info("[%lld] Serializing layer:%zu", buffer - original_buffer, i);
         serialize(network.layers[i], &buffer);
     }
 
@@ -239,8 +231,6 @@ void deserialize(Network &network, char *buffer) {
 
     network.layers = static_cast<Layer *>(malloc(sizeof(Layer) * network.layer_count));
 
-    // init(network, 3, config.layer_sizes, config.learning_rate);
-
     for (usize i = 0; i < network.layer_count; i++) {
         memcpy(&network.layers[i].input_size, buffer, sizeof(usize));
         buffer += sizeof(usize);
@@ -251,8 +241,7 @@ void deserialize(Network &network, char *buffer) {
         init(network.layers[i], network.layers[i].input_size, network.layers[i].output_size);
     }
 
-    for (usize i = 0; i < network.layer_count; ++i) {
-        info("[%lld] Deserializing layer:%zu", buffer - original_buffer, i);
+    for (usize i = 0; i < network.layer_count; i++) {
         deserialize(network.layers[i], &buffer);
     }
 }

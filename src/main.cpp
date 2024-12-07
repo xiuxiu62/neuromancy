@@ -16,8 +16,8 @@ int main() {
         .layer_sizes = layer_sizes,
         .training_data = digit_net::data_set,
         .testing_data = digit_net::test_data,
-        // .epochs = 250000,
-        .epochs = 10000,
+        .epochs = 250000,
+        // .epochs = 10000,
     };
 
     run(config);
