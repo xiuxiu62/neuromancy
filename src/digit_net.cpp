@@ -1,7 +1,7 @@
-#include "core/logger.h"
 #include "digit_net.hpp"
+
+#include "core/logger.h"
 #include "nn.hpp"
-#include <corecrt_malloc.h>
 
 namespace digit_net {
 
@@ -59,11 +59,11 @@ void run(ModelConfig config) {
         }
     }
 
-    // char *buf = serialize(network);
-    // deinit(network);
+    char *buf = serialize(network);
+    deinit(network);
 
-    // deserialize(network, buf);
-    // free(buf);
+    deserialize(network, buf);
+    free(buf);
 
     test_network(network, config.training_data, Digit::DIGIT_COUNT);
     test_network(network, config.testing_data, 5);
