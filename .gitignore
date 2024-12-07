@@ -1,0 +1,9 @@
+/build
+/.cache
+
+/deps/glad 
+/deps/glfw 
+/deps/imgui
+compile_commands.json
+.ignore
+
