@@ -1,11 +1,14 @@
 #include "nn.hpp"
 
+#include "core/file.h"
 #include "core/logger.h"
 #include "core/types.h"
 
 #include <cmath>
 #include <cstdlib>
+#include <fstream>
 #include <limits>
+#include <string>
 
 f32 sigmoid(f32 x) {
     return 1.0f / (1.0f + std::expf(-x));
@@ -199,12 +202,14 @@ char *serialize(Network &network) {
     char *original_buffer = static_cast<char *>(malloc(calculate_total_serialization_size(network)));
     char *buffer = original_buffer;
 
+    // Metadata
     memcpy(buffer, &network.layer_count, sizeof(usize));
     buffer += sizeof(usize);
 
     memcpy(buffer, &network.learning_rate, sizeof(f32));
     buffer += sizeof(f32);
 
+    // Layer sizes
     for (usize i = 0; i < network.layer_count; i++) {
         memcpy(buffer, &network.layers[i].input_size, sizeof(usize));
         buffer += sizeof(usize);
@@ -213,6 +218,7 @@ char *serialize(Network &network) {
         buffer += sizeof(usize);
     }
 
+    // Layer data
     for (usize i = 0; i < network.layer_count; i++) {
         serialize(network.layers[i], &buffer);
     }
@@ -223,14 +229,17 @@ char *serialize(Network &network) {
 void deserialize(Network &network, char *buffer) {
     char *original_buffer = buffer;
 
+    // Read metadata
     memcpy(&network.layer_count, buffer, sizeof(usize));
     buffer += sizeof(usize);
 
     memcpy(&network.learning_rate, buffer, sizeof(f32));
     buffer += sizeof(f32);
 
+    // Allocate layers
     network.layers = static_cast<Layer *>(malloc(sizeof(Layer) * network.layer_count));
 
+    // Read layer sizes and initialize layers
     for (usize i = 0; i < network.layer_count; i++) {
         memcpy(&network.layers[i].input_size, buffer, sizeof(usize));
         buffer += sizeof(usize);
@@ -241,7 +250,56 @@ void deserialize(Network &network, char *buffer) {
         init(network.layers[i], network.layers[i].input_size, network.layers[i].output_size);
     }
 
+    // Read layer data
     for (usize i = 0; i < network.layer_count; i++) {
         deserialize(network.layers[i], &buffer);
     }
+}
+
+bool save(Network &network, const char *path) {
+    std::ofstream file(path, std::ios::binary);
+    if (!file.is_open()) {
+        error("Failed to open file: %s", path);
+        return false;
+    }
+
+    char *data = serialize(network);
+    usize len = calculate_total_serialization_size(network);
+
+    info("Saving network with %zu layers, learning rate: %f", network.layer_count, network.learning_rate);
+    for (usize i = 0; i < network.layer_count; i++) {
+        info("Layer %zu: input_size=%zu, output_size=%zu", i, network.layers[i].input_size,
+             network.layers[i].output_size);
+    }
+    info("Total serialized size: %zu bytes", len);
+
+    file.write(data, len);
+    file.close();
+    free(data);
+
+    return true;
+}
+
+bool load(Network &network, const char *path) {
+    char *data;
+    isize bytes_read = read_file(path, &data);
+
+    info("Bytes read: %zd", bytes_read);
+    if (bytes_read < 0) {
+        return false;
+    }
+
+    usize first_value;
+    memcpy(&first_value, data, sizeof(usize));
+    info("First value (layer_count) read: %zu", first_value);
+
+    if (bytes_read < sizeof(usize) + sizeof(f32)) { // Minimum size
+        error("Fale too small");
+        free(data);
+        return false;
+    }
+
+    deserialize(network, data);
+    free(data);
+    return true;
 }

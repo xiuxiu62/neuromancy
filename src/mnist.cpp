@@ -1,9 +1,9 @@
-#include "digit_net.hpp"
+#include "mnist.hpp"
 
 #include "core/logger.h"
 #include "nn.hpp"
 
-namespace digit_net {
+namespace mnist {
 
 void test_network(Network &network, Digit *training_data, usize training_data_count) {
     for (usize i = 0; i < training_data_count; i++) {
@@ -37,35 +37,43 @@ void test_network(Network &network, Digit *training_data, usize training_data_co
     }
 }
 
-void run(ModelConfig config) {
+// void run(const char *path) {
+// }
+
+void run(ModelConfig config, bool training) {
     Network network;
-    init(network, 3, config.layer_sizes, config.learning_rate);
-    prime(network);
+    const char *path = "mnist.model";
 
-    for (usize epoch = 0; epoch < config.epochs; epoch++) {
-        for (usize i = 0; i < Digit::DIGIT_COUNT; i++) {
-            Digit &example = config.training_data[i];
-            train(network, example.pixels, example.label);
-        }
+    if (training) {
+        init(network, 3, config.layer_sizes, config.learning_rate);
+        prime(network);
 
-        if (epoch % 1000 == 0) {
-            f32 total_loss = 0;
+        for (usize epoch = 0; epoch < config.epochs; epoch++) {
             for (usize i = 0; i < Digit::DIGIT_COUNT; i++) {
                 Digit &example = config.training_data[i];
-                forward(network, example.pixels);
-                total_loss += calculate_loss(network, example.label);
+                train(network, example.pixels, example.label);
             }
-            info("Epoch %zu: Loss = %f", epoch, total_loss / Digit::DIGIT_COUNT);
+
+            if (epoch % 1000 == 0) {
+                f32 total_loss = 0;
+                for (usize i = 0; i < Digit::DIGIT_COUNT; i++) {
+                    Digit &example = config.training_data[i];
+                    forward(network, example.pixels);
+                    total_loss += calculate_loss(network, example.label);
+                }
+                info("Epoch %zu: Loss = %f", epoch, total_loss / Digit::DIGIT_COUNT);
+            }
         }
+
+        save(network, path);
+    } else {
+        if (!load(network, "mnist.model")) {
+            info("Failed to load");
+            return;
+        }
+
+        test_network(network, config.training_data, Digit::DIGIT_COUNT);
+        test_network(network, config.testing_data, 5);
     }
-
-    char *buf = serialize(network);
-    deinit(network);
-
-    deserialize(network, buf);
-    free(buf);
-
-    test_network(network, config.training_data, Digit::DIGIT_COUNT);
-    test_network(network, config.testing_data, 5);
 }
-}; // namespace digit_net
+}; // namespace mnist

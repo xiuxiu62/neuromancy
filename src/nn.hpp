@@ -47,3 +47,5 @@ f32 calculate_loss(Network &network, f32 *target);
 
 char *serialize(Network &network);
 void deserialize(Network &network, char *buffer);
+bool save(Network &network, const char *path);
+bool load(Network &network, const char *path);

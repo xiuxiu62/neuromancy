@@ -1,6 +1,6 @@
 #include "backend/opencl.hpp"
-#include "digit_net.hpp"
 #include "gate_net.hpp"
+#include "mnist.hpp"
 #include "nn.hpp"
 
 int main() {
@@ -9,18 +9,18 @@ int main() {
     // memcpy(training_data, gate_net::xor_gate, sizeof(gate_net::TrainingData) * 4);
 
     // usize layer_sizes[] = {digit_net::Digit::PIXEL_COUNT, 64, 32, digit_net::Digit::DIGIT_COUNT};
-    usize layer_sizes[] = {digit_net::Digit::PIXEL_COUNT, 48, 64, 32, digit_net::Digit::DIGIT_COUNT};
+    usize layer_sizes[] = {mnist::Digit::PIXEL_COUNT, 48, 64, 32, mnist::Digit::DIGIT_COUNT};
 
-    digit_net::ModelConfig config = {
+    mnist::ModelConfig config = {
         .learning_rate = 0.01f,
         .layer_sizes = layer_sizes,
-        .training_data = digit_net::data_set,
-        .testing_data = digit_net::test_data,
+        .training_data = mnist::data_set,
+        .testing_data = mnist::test_data,
         .epochs = 250000,
         // .epochs = 10000,
     };
 
-    run(config);
+    run(config, false);
 
     return 0;
 }

@@ -3,7 +3,7 @@
 #include "core/types.h"
 #include "nn.hpp"
 
-namespace digit_net {
+namespace mnist {
 struct Digit {
     static constexpr usize WIDTH = 5;
     static constexpr usize HEIGHT = 7;
@@ -227,5 +227,5 @@ struct ModelConfig {
 
 void test_network(Network &network, Digit *training_data, usize training_data_count);
 
-void run(ModelConfig config);
-}; // namespace digit_net
+void run(ModelConfig config, bool training);
+}; // namespace mnist

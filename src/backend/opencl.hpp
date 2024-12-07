@@ -39,8 +39,10 @@ void init(OpenCLContext &ctx) {
     ctx.context = clCreateContext(nullptr, 1, &ctx.device, nullptr, nullptr, nullptr);
     ctx.queue = clCreateCommandQueue(ctx.context, ctx.device, 0, nullptr);
 
-    const char *src = file_read_to_string("compute/nn.cl");
-    ctx.program = clCreateProgramWithSource(ctx.context, 1, &src, nullptr, nullptr);
+    char *src;
+    isize bytes_read = read_file("compute/nn.cl", &src);
+
+    ctx.program = clCreateProgramWithSource(ctx.context, 1, const_cast<const char **>(&src), nullptr, nullptr);
     clBuildProgram(ctx.program, 1, &ctx.device, nullptr, nullptr, nullptr);
     free(const_cast<void *>(reinterpret_cast<const void *>(src)));
 
