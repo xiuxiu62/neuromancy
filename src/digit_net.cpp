@@ -40,7 +40,7 @@ void test_network(Network &network, Digit *training_data, usize training_data_co
 void run(ModelConfig config) {
     Network network;
     init(network, 3, config.layer_sizes, config.learning_rate);
-    // prime(network);
+    prime(network);
 
     for (usize epoch = 0; epoch < config.epochs; epoch++) {
         for (usize i = 0; i < Digit::DIGIT_COUNT; i++) {
