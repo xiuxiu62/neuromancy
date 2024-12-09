@@ -225,7 +225,7 @@ struct ModelConfig {
     usize epochs;
 };
 
-void test_network(Network &network, Digit *training_data, usize training_data_count);
+usize test_network(Network &network, Digit *training_data, usize training_data_count);
 
 void run(ModelConfig config, bool training);
 }; // namespace mnist

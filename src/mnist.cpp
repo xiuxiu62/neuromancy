@@ -5,7 +5,9 @@
 
 namespace mnist {
 
-void test_network(Network &network, Digit *training_data, usize training_data_count) {
+usize test_network(Network &network, Digit *training_data, usize training_data_count) {
+    usize correct = 0;
+
     for (usize i = 0; i < training_data_count; i++) {
         Digit &example = training_data[i];
         f32 pixels[Digit::PIXEL_COUNT];
@@ -31,10 +33,16 @@ void test_network(Network &network, Digit *training_data, usize training_data_co
             }
         }
 
-        const char ico = actual == predicted ? '+' : '-';
+        static char ico = '-';
+        if (actual == predicted) {
+            ico = '+';
+            correct++;
+        }
         info("Digit %zu - [%c] Expected: %zu, Predicted: %zu (confidence: %.2f)", i, ico, actual, predicted,
              max_activation);
     }
+
+    return correct;
 }
 
 // void run(const char *path) {
@@ -72,8 +80,13 @@ void run(ModelConfig config, bool training) {
             return;
         }
 
-        test_network(network, config.training_data, Digit::DIGIT_COUNT);
-        test_network(network, config.testing_data, 5);
+        constexpr usize possible = Digit::DIGIT_COUNT + 5;
+        usize correct = 0;
+
+        correct += test_network(network, config.training_data, Digit::DIGIT_COUNT);
+        correct += test_network(network, config.testing_data, 5);
+
+        info("[%zu / %zu] correct", correct, possible);
     }
 }
 }; // namespace mnist

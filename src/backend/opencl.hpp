@@ -167,3 +167,57 @@ void train(OpenCLContext &ctx, Network &network, f32 *input, f32 *target) {
         backward(ctx, network.layers[i], deltas, network.learning_rate);
     }
 }
+
+// REVISION
+
+struct OpenCLLayer {
+    cl_mem weights;
+    cl_mem biases;
+    cl_mem output;
+    cl_mem deltas;
+    usize input_size;
+    usize output_size;
+};
+
+struct OpenCLNetwork {
+    OpenCLLayer *layers;
+    usize layer_count;
+    f32 learning_rate;
+};
+
+struct OpenCLTrainingBuffers {
+    cl_mem input_data;  // [batch_size * input_size]
+    cl_mem target_data; // [batch_size * output_size]
+    usize batch_size;
+    usize input_size;
+    usize output_size;
+};
+
+// TODO: Initialize OpenCL network resource directly from config, rather than pre-initializing a network host-side
+
+void init(OpenCLContext &ctx, OpenCLLayer &layer, const Layer &host_layer) {
+    layer.input_size = host_layer.input_size;
+    layer.output_size = host_layer.output_size;
+
+    layer.weights = clCreateBuffer(ctx.context, CL_MEM_READ_WRITE, sizeof(f32) * layer.input_size * layer.output_size,
+                                   nullptr, nullptr);
+    layer.biases = clCreateBuffer(ctx.context, CL_MEM_READ_WRITE, sizeof(f32) * layer.output_size, nullptr, nullptr);
+    layer.output = clCreateBuffer(ctx.context, CL_MEM_READ_WRITE, sizeof(f32) * layer.output_size, nullptr, nullptr);
+    layer.deltas = clCreateBuffer(ctx.context, CL_MEM_READ_WRITE, sizeof(f32) * layer.output_size, nullptr, nullptr);
+
+    clEnqueueWriteBuffer(ctx.queue, layer.weights, CL_TRUE, 0, sizeof(f32) * layer.input_size * layer.output_size,
+                         layer.weights, 0, nullptr, nullptr);
+    clEnqueueWriteBuffer(ctx.queue, layer.biases, CL_TRUE, 0, sizeof(f32) * layer.output_size, layer.biases, 0, nullptr,
+                         nullptr);
+}
+
+void init(OpenCLContext &ctx, OpenCLNetwork &network, const Network &host_network) {
+    network.layer_count = host_network.layer_count;
+    network.learning_rate = host_network.learning_rate;
+    network.layers = static_cast<OpenCLLayer *>(malloc(sizeof(OpenCLLayer) * network.layer_count));
+}
+
+// TODO: Load chunks of training data in, training incrementally if a region of the training data exceeds the vram cap
+// void train(OpenCLContext &ctx, OpenCLNetwork &network, const f32 *training_data, const f32 *target_data,
+//            usize frame_count, usize batch_size) {
+// }
