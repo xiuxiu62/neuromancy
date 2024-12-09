@@ -1,5 +1,7 @@
 #include "gate_net.hpp"
 
+#include <cstring>
+
 namespace gate_net {
 
 void test_network(Network &network, TrainingData *training_data, usize training_data_count) {

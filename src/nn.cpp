@@ -6,12 +6,14 @@
 
 #include <cmath>
 #include <cstdlib>
+#include <cstring>
 #include <fstream>
 #include <limits>
+#include <ratio>
 #include <string>
 
 f32 sigmoid(f32 x) {
-    return 1.0f / (1.0f + std::expf(-x));
+    return 1.0f / (1.0f + expf(-x));
 }
 
 f32 sigmoid_derivative(f32 x) {
@@ -52,7 +54,7 @@ void prime(Layer &layer) {
     const usize delta_storage_size = output_storage_size;
 
     // Randomize weights between -1 and 1
-    f32 weight_scale = std::sqrtf(2.0f / (layer.input_size + layer.output_size));
+    f32 weight_scale = sqrtf(2.0f / (layer.input_size + layer.output_size));
     for (usize i = 0; i < layer.input_size * layer.output_size; i++) {
         layer.weights[i] = (static_cast<f32>(rand()) / static_cast<f32>(RAND_MAX) * 2.0f - 1.0f) * weight_scale;
     }
@@ -266,13 +268,6 @@ bool save(Network &network, const char *path) {
     char *data = serialize(network);
     usize len = calculate_total_serialization_size(network);
 
-    info("Saving network with %zu layers, learning rate: %f", network.layer_count, network.learning_rate);
-    for (usize i = 0; i < network.layer_count; i++) {
-        info("Layer %zu: input_size=%zu, output_size=%zu", i, network.layers[i].input_size,
-             network.layers[i].output_size);
-    }
-    info("Total serialized size: %zu bytes", len);
-
     file.write(data, len);
     file.close();
     free(data);
@@ -284,17 +279,15 @@ bool load(Network &network, const char *path) {
     char *data;
     isize bytes_read = read_file(path, &data);
 
-    info("Bytes read: %zd", bytes_read);
     if (bytes_read < 0) {
         return false;
     }
 
     usize first_value;
     memcpy(&first_value, data, sizeof(usize));
-    info("First value (layer_count) read: %zu", first_value);
 
     if (bytes_read < sizeof(usize) + sizeof(f32)) { // Minimum size
-        error("Fale too small");
+        error("File too small");
         free(data);
         return false;
     }
@@ -302,4 +295,212 @@ bool load(Network &network, const char *path) {
     deserialize(network, data);
     free(data);
     return true;
+}
+
+struct MomentumOptimizerData {
+    f32 momentum;
+    f32 *weight_velocity;
+    f32 *bias_velocity;
+};
+
+struct RMSPropOptimizerData {
+    f32 decay_rate;
+    f32 epsilon;
+    f32 *weight_cache;
+    f32 *bias_cache;
+};
+
+struct AdamOptimizerData {
+    f32 beta1;
+    f32 beta2;
+    f32 epsilon;
+    usize t;
+    f32 *m_weights;
+    f32 *m_biases;
+    f32 *v_weights;
+    f32 *v_biases;
+};
+
+struct Optimizer {
+    enum Kind { SGD, Momentum, RMSProp, Adam };
+
+    Kind kind;
+    f32 learning_rate;
+    union {
+        MomentumOptimizerData momentum;
+        RMSPropOptimizerData rms_prop;
+        AdamOptimizerData adam;
+    } data;
+};
+
+void init_sgd_optimizer(Optimizer &opt, f32 learning_rate) {
+    opt.kind = Optimizer::SGD;
+    opt.learning_rate = learning_rate;
+}
+
+void init_momentum_optimizer(Optimizer &opt, Layer &layer, f32 learning_rate, f32 momentum) {
+    const usize weight_size = layer.input_size * layer.output_size;
+    const usize bias_size = layer.output_size;
+
+    f32 *storage = static_cast<f32 *>(calloc(weight_size + bias_size, sizeof(f32)));
+
+    opt.kind = Optimizer::Momentum;
+    opt.learning_rate = learning_rate;
+    opt.data.momentum = {
+        .momentum = momentum,
+        .weight_velocity = storage,
+        .bias_velocity = storage + weight_size,
+    };
+}
+
+void init_rmsprop_optimizer(Optimizer &opt, Layer &layer, f32 learning_rate, f32 decay_rate = 0.9f,
+                            f32 epsilon = 1e-8f) {
+    const usize weight_size = layer.input_size * layer.output_size;
+    const usize bias_size = layer.output_size;
+
+    f32 *storage = static_cast<f32 *>(calloc(weight_size + bias_size, sizeof(f32)));
+
+    opt.kind = Optimizer::RMSProp;
+    opt.learning_rate = learning_rate;
+    opt.data.rms_prop = {
+        .decay_rate = decay_rate,
+        .epsilon = epsilon,
+        .weight_cache = storage,
+        .bias_cache = storage + weight_size,
+    };
+}
+
+void init_adam_optimizer(Optimizer &opt, Layer &layer, f32 learning_rate, f32 beta1 = 0.9f, f32 beta2 = 0.999f,
+                         f32 epsilon = 1e-8f) {
+    const usize weight_size = layer.input_size * layer.output_size;
+    const usize bias_size = layer.output_size;
+
+    f32 *storage = static_cast<f32 *>(calloc((weight_size + bias_size) * 2, sizeof(f32)));
+
+    opt.kind = Optimizer::Adam;
+    opt.learning_rate = learning_rate;
+    opt.data.adam = {
+        .beta1 = beta1,
+        .beta2 = beta2,
+        .epsilon = epsilon,
+        .t = 0,
+        .m_weights = storage,
+        .m_biases = storage + weight_size,
+        .v_weights = storage + weight_size + bias_size,
+        .v_biases = storage + (weight_size * 2) + bias_size,
+    };
+}
+
+void deinit(Optimizer &opt) {
+    switch (opt.kind) {
+    // case Optimizer::SGD:
+    //     break;
+    case Optimizer::Momentum:
+        free(reinterpret_cast<void *>(opt.data.momentum.weight_velocity));
+        break;
+    case Optimizer::RMSProp:
+        free(reinterpret_cast<void *>(opt.data.rms_prop.weight_cache));
+        break;
+    case Optimizer::Adam:
+        free(reinterpret_cast<void *>(opt.data.adam.m_weights));
+        break;
+    default:
+        break;
+    };
+}
+
+void update_weights_sdg(Optimizer &opt, Layer &layer, usize weight_size, usize bias_size);
+void update_weights_momentum(Optimizer &opt, Layer &layer, usize weight_size, usize bias_size);
+void update_weights_rms_prop(Optimizer &opt, Layer &layer, usize weight_size, usize bias_size);
+void update_weights_adam(Optimizer &opt, Layer &layer, usize weight_size, usize bias_size);
+
+void update_weights(Optimizer &opt, Layer &layer) {
+    const usize weight_size = layer.input_size * layer.output_size;
+    const usize bias_size = layer.output_size;
+
+    switch (opt.kind) {
+    case Optimizer::SGD:
+        update_weights_sdg(opt, layer, weight_size, bias_size);
+        break;
+    case Optimizer::Momentum:
+        update_weights_momentum(opt, layer, weight_size, bias_size);
+        break;
+    case Optimizer::RMSProp:
+        update_weights_rms_prop(opt, layer, weight_size, bias_size);
+        break;
+    case Optimizer::Adam:
+        update_weights_adam(opt, layer, weight_size, bias_size);
+        break;
+    default:
+        break;
+    }
+}
+
+void update_weights_sdg(Optimizer &opt, Layer &layer, usize weight_size, usize bias_size) {
+    for (usize i = 0; i < weight_size; i++) {
+        f32 gradient = layer.deltas[i % layer.output_size] * layer.inputs[i / layer.output_size];
+        layer.weights[i] -= gradient * opt.learning_rate;
+    }
+
+    for (usize i = 0; i < bias_size; i++) {
+        layer.biases[i] -= layer.deltas[i] * opt.learning_rate;
+    }
+}
+
+void update_weights_momentum(Optimizer &opt, Layer &layer, usize weight_size, usize bias_size) {
+    const MomentumOptimizerData &data = opt.data.momentum;
+    for (usize i = 0; i < weight_size; i++) {
+        f32 &velocity = data.weight_velocity[i];
+        f32 gradient = layer.deltas[i % layer.output_size] * layer.inputs[i / layer.output_size];
+        velocity = velocity * data.momentum - gradient * opt.learning_rate;
+        layer.weights[i] += velocity;
+    }
+
+    for (usize i = 0; i < bias_size; i++) {
+        f32 &velocity = data.bias_velocity[i];
+        velocity = velocity * data.momentum - layer.deltas[i] * opt.learning_rate;
+        layer.biases[i] += velocity;
+    }
+}
+
+void update_weights_rms_prop(Optimizer &opt, Layer &layer, usize weight_size, usize bias_size) {
+    const RMSPropOptimizerData &data = opt.data.rms_prop;
+    for (usize i = 0; i < weight_size; i++) {
+        f32 &weight = data.weight_cache[i];
+        f32 gradient = layer.deltas[i % layer.output_size] * layer.inputs[i / layer.output_size];
+        weight = weight * data.decay_rate + gradient * gradient * (1 - data.decay_rate);
+        layer.weights[i] -= gradient * opt.learning_rate / (sqrtf(weight) + data.epsilon);
+    }
+
+    for (usize i = 0; i < bias_size; i++) {
+        f32 &bias = data.bias_cache[i];
+        f32 delta = layer.deltas[i];
+        bias = bias * data.decay_rate + delta * delta * (1 - data.decay_rate);
+        layer.biases[i] -= layer.deltas[i] * opt.learning_rate / (sqrtf(bias) + data.epsilon);
+    }
+}
+
+void update_weights_adam(Optimizer &opt, Layer &layer, usize weight_size, usize bias_size) {
+    AdamOptimizerData &data = opt.data.adam;
+
+    data.t++;
+    const f32 alpha = sqrtf(1 - powf(data.beta2, data.t)) * opt.learning_rate / (1 - powf(data.beta1, data.t));
+
+    for (usize i = 0; i < weight_size; i++) {
+        f32 &m_weight = data.m_weights[i];
+        f32 &v_weight = data.v_weights[i];
+        f32 gradient = layer.deltas[i % layer.output_size] * layer.inputs[i / layer.output_size];
+        m_weight = m_weight * data.beta1 + (1 - data.beta1) * gradient;
+        v_weight = v_weight * data.beta2 + (1 - data.beta2) * gradient * gradient;
+        layer.weights[i] = m_weight * alpha / (sqrtf(v_weight) * data.epsilon);
+    }
+
+    for (usize i = 0; i < bias_size; i++) {
+        f32 &m_bias = data.m_biases[i];
+        f32 &v_bias = data.v_biases[i];
+        f32 delta = layer.deltas[i];
+        m_bias = m_bias * data.beta1 + (1 - data.beta1) * delta;
+        v_bias = v_bias * data.beta2 + (1 - data.beta2) * delta * delta;
+        layer.biases[i] = m_bias * alpha / (sqrtf(v_bias) * data.epsilon);
+    }
 }

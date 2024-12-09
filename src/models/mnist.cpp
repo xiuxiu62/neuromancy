@@ -3,6 +3,8 @@
 #include "core/logger.h"
 #include "nn.hpp"
 
+#include <cstring>
+
 namespace mnist {
 
 usize test_network(Network &network, Digit *training_data, usize training_data_count) {

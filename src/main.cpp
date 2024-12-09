@@ -1,6 +1,6 @@
 #include "backend/opencl.hpp"
-#include "gate_net.hpp"
-#include "mnist.hpp"
+#include "models/logic_gates.hpp"
+#include "models/mnist.hpp"
 #include "nn.hpp"
 
 int main() {

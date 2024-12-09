@@ -1,5 +1,6 @@
-#include "core/logger.h"
 #include "core/time/clock.h"
+
+#include "core/logger.h"
 
 #define MAX_ELAPSED_TIME (24.0 * 60.0 * 60.0) // 24 hours in seconds
 
