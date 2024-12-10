@@ -25,50 +25,58 @@ endif()
 file(GLOB_RECURSE SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/*.c" "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cc" "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp")
 file(GLOB_RECURSE HEADERS "${CMAKE_CURRENT_SOURCE_DIR}/src/*.h" "${CMAKE_CURRENT_SOURCE_DIR}/src/*.hpp")
 
+find_package(Vulkan REQUIRED)
+
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/deps/OpenCL-SDK/external/OpenCL-Headers)
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/deps/OpenCL-SDK/external/OpenCL-ICD-Loader)
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/deps/glfw)
 
-# set(IMGUI_DIR ${CMAKE_CURRENT_SOURCE_DIR}/deps/imgui)
-# set(IMGUI_SOURCES 
-#   ${IMGUI_DIR}/imgui.cpp
-#   ${IMGUI_DIR}/imgui_draw.cpp
-#   ${IMGUI_DIR}/imgui_tables.cpp
-#   ${IMGUI_DIR}/imgui_widgets.cpp
-#   ${IMGUI_DIR}/backends/imgui_impl_glfw.cpp
-#   ${IMGUI_DIR}/backends/imgui_impl_opengl3.cpp
-# )
-
-add_executable(${PROJECT_NAME} ${SOURCES} ${HEADERS} 
-  # ${IMGUI_SOURCES}
+set(IMGUI_DIR ${CMAKE_CURRENT_SOURCE_DIR}/deps/imgui)
+set(IMGUI_SOURCES 
+  ${IMGUI_DIR}/imgui.cpp
+  ${IMGUI_DIR}/imgui_draw.cpp
+  ${IMGUI_DIR}/imgui_tables.cpp
+  ${IMGUI_DIR}/imgui_widgets.cpp
+  ${IMGUI_DIR}/backends/imgui_impl_glfw.cpp
+  ${IMGUI_DIR}/backends/imgui_impl_opengl3.cpp
 )
 
-# add_subdirectory(deps/glfw)
-# add_subdirectory(deps/glad)
+add_executable(${PROJECT_NAME} 
+  ${SOURCES} 
+  ${HEADERS} 
+  ${IMGUI_SOURCES}
+)
 
 target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
     ${CMAKE_CURRENT_SOURCE_DIR}/deps/OpenCL-SDK/external/OpenCL-Headers
     ${CMAKE_CURRENT_SOURCE_DIR}/deps/OpenCL-SDK/external/OpenCL-CLHPP/include
-    # ${GLFW_INCLUDE_DIR}
-    # ${GLAD_INCLUDE_DIR}
-    # ${IMGUI_DIR}
-    # ${IMGUI_DIR}/backends
+    ${Vulkan_INCLUDE_DIRS}
+    ${IMGUI_DIR}
+    ${IMGUI_DIR}/backends
 )
 
 target_link_libraries(${PROJECT_NAME} PRIVATE
   OpenCL::OpenCL
+  Vulkan::Vulkan
+  glfw
 )
 
-# target_link_libraries(${PROJECT_NAME}
-#   glfw
-#   glad
-# )
+file(GLOB SHADER_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/shaders/*")
 
-# # Force include GLAD before any other code
-# if(MSVC)
-#   target_compile_options(${PROJECT_NAME} PRIVATE /FI"glad/glad.h")
-# else()
-#   target_compile_options(${PROJECT_NAME} PRIVATE -include glad/glad.h)
-# endif()
+find_program(GLSLC glslc)
+if(GLSLC)
+  foreach(SHADER ${SHADER_SOURCES})
+    get_filename_component(SHADER_NAME ${SHADER} NAME)
+    add_custom_command(
+      OUTPUT "${CMAKE_BINARY_DIR}/shaders/${SHADER_NAME}.spv"
+      COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/shaders/"
+      COMMAND ${GLSLC} ${SHADER} -o "${CMAKE_BINARY_DIR}/shaders/${SHADER_NAME}.spv"
+      DEPENDS ${SHADER}
+      COMMENT "Compiling shader ${SHADER_NAME}"
+    )
+  endforeach()
 
-# target_compile_definitions(${PROJECT_NAME} PRIVATE GLAD_GL_IMPLEMENTATION)
+  add_custom_target(shaders ALL DEPENDS ${SHADER_BINARY_FILES})
+  add_dependencies(${PROJECT_NAME} shaders)
+endif()

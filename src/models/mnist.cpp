@@ -47,12 +47,9 @@ usize test_network(Network &network, Digit *training_data, usize training_data_c
     return correct;
 }
 
-// void run(const char *path) {
-// }
-
 void run(ModelConfig config, bool training) {
     Network network;
-    const char *path = "mnist.model";
+    const char *path = "trained_models/mnist.model";
 
     if (training) {
         init(network, 3, config.layer_sizes, config.learning_rate);
@@ -77,7 +74,7 @@ void run(ModelConfig config, bool training) {
 
         save(network, path);
     } else {
-        if (!load(network, "mnist.model")) {
+        if (!load(network, path)) {
             info("Failed to load");
             return;
         }
