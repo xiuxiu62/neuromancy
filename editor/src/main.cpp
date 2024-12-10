@@ -1,10 +1,14 @@
+#define GLFW_INCLUDE_VULKAN
+
 #include "core/logger.h"
 #include "core/types.h"
 
-#define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 #include <cstdlib>
 #include <cstring>
+#include <imgui.h>
+#include <imgui_impl_glfw.h>
+#include <imgui_impl_vulkan.h>
 #include <vulkan/vulkan_core.h>
 
 struct GraphicsContext {
@@ -18,6 +22,90 @@ struct GraphicsContext {
     VkDebugUtilsMessengerEXT debug_messenger;
     bool framebuffer_resized;
 };
+
+struct ImGuiRenderer {
+    VkRenderPass render_pass;
+    VkDescriptorPool descriptor_pool;
+    VkCommandPool command_pool;
+    VkCommandBuffer command_buffer;
+    u32 queue_family_index;
+};
+
+static bool init_imgui(GraphicsContext &ctx) {
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO &io = ImGui::GetIO();
+    (void)io;
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+
+    ImGui::StyleColorsDark();
+
+    if (!ImGui_ImplGlfw_InitForVulkan(ctx.window, true)) {
+        error("Failed to initialize ImGui GLFW backend");
+        return false;
+    }
+
+    //     {
+    //         VkInstance Instance;
+    //         VkPhysicalDevice PhysicalDevice;
+    //         VkDevice Device;
+    //         uint32_t QueueFamily;
+    //         VkQueue Queue;
+    //         VkDescriptorPool DescriptorPool;   // See requirements in note above; ignored if using DescriptorPoolSize
+    //         > 0 VkRenderPass RenderPass;           // Ignored if using dynamic rendering uint32_t MinImageCount; //
+    //         >= 2 uint32_t ImageCount;               // >= MinImageCount VkSampleCountFlagBits MSAASamples; // 0
+    //         defaults to VK_SAMPLE_COUNT_1_BIT
+
+    //         // (Optional)
+    //         VkPipelineCache PipelineCache;
+    //         uint32_t Subpass;
+
+    //         // (Optional) Set to create internal descriptor pool instead of using DescriptorPool
+    //         uint32_t DescriptorPoolSize;
+
+    //         // (Optional) Dynamic Rendering
+    //         // Need to explicitly enable VK_KHR_dynamic_rendering extension to use this, even for Vulkan 1.3.
+    //         bool UseDynamicRendering;
+    // #ifdef IMGUI_IMPL_VULKAN_HAS_DYNAMIC_RENDERING
+    //         VkPipelineRenderingCreateInfoKHR PipelineRenderingCreateInfo;
+    // #endif
+
+    //         // (Optional) Allocation, Debugging
+    //         const VkAllocationCallbacks *Allocator;
+    //         void (*CheckVkResultFn)(VkResult err);
+    //         VkDeviceSize MinAllocationSize; // Minimum allocation size. Set to 1024*1024 to satisfy zealous best
+    //         practices
+    //                                         // validation layer and waste a little memory.
+    // }
+
+    ImGui_ImplVulkan_InitInfo init_info = {
+        .Instance = ctx.instance,
+        .PhysicalDevice = ctx.physical_device,
+        .Device = ctx.logical_device,
+        // .QueueFamily = ctx.queue_family_index,
+        .Queue = ctx.graphics_queue,
+        // .DescriptorPool = ctx.descriptor_pool,
+        .MinImageCount = 2,
+        .ImageCount = 2,
+        .MSAASamples = VK_SAMPLE_COUNT_1_BIT,
+        .PipelineCache = nullptr,
+        .Allocator = nullptr,
+        .CheckVkResultFn = nullptr,
+    };
+
+    // if (!ImGui_ImplVulkan_Init(&init_info, ctx.render_pass)) {
+    //     error("Failed to initialize ImGui Vulkan backend");
+    //     return false;
+    // }
+
+    return true;
+}
+
+void deinit_imgui(GraphicsContext &ctx) {
+    ImGui_ImplVulkan_Shutdown();
+    ImGui_ImplGlfw_Shutdown();
+    ImGui::DestroyContext();
+}
 
 #ifdef DEBUG
 const bool enable_validation_layers = true;
@@ -188,6 +276,8 @@ bool init(GraphicsContext &ctx, GLFWwindow *window, const char *title) {
 }
 
 void deinit(GraphicsContext &ctx) {
+    // deinit_imgui(ctx);
+
     if (ctx.surface) vkDestroySurfaceKHR(ctx.instance, ctx.surface, nullptr);
     if (ctx.instance) vkDestroyInstance(ctx.instance, nullptr);
 }
