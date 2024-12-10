@@ -1,4 +1,4 @@
-#include "gate_net.hpp"
+#include "logic_gates.hpp"
 
 #include <cstring>
 
