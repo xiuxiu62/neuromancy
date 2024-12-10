@@ -1,4 +1,4 @@
-#include "logic_gates.hpp"
+#include "models/logic_gates.hpp"
 
 #include <cstring>
 

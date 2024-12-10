@@ -1,4 +1,4 @@
-#include "mnist.hpp"
+#include "models/mnist.hpp"
 
 #include "core/logger.h"
 #include "nn.hpp"
